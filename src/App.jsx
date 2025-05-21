@@ -6,17 +6,21 @@ import { useEffect , useState } from 'react'
 import { getLocalStorage, setLocalStorage } from './utils/localStorage'
 import { AuthContext } from './context/AuthProvider'
 const App = () => {
-  //  useEffect(()=> {
-  //   setLocalStorage()
-  //   getLocalStorage()
-  //  },[])
+   useEffect(()=> {
+    setLocalStorage()
+    getLocalStorage()
+   },[])
   const [user,setUser] = useState(null)
+  const authdata = useContext(AuthContext)
+    
+    
+    
   const handlelogin = (email , password) => {
     if(email == 'admin@me.com' && password == "1234"){
       setUser('admin')
       
     }
-    else if( email == 'user@me.com' && password == '1234'){
+    else if(authdata && authdata.userData.employees.find((e)=> email == e.email && password == e.password)){
       setUser('employee')
 
     }
@@ -25,9 +29,8 @@ const App = () => {
     }
     
   }
-  const data = useContext(AuthContext)
-  console.log(data);
-  
+
+
 
   return (
     <>
