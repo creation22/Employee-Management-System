@@ -1,38 +1,72 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { AuthContext } from '../../context/AuthProvider';
+import { updateEmployeeInStorage } from '../../utils/localStorage';
 
 const AcceptTask = ({ data, onTaskUpdate }) => {
   const [userData, setUserData] = useContext(AuthContext);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  const completeTask = () => {
-    const updatedUserData = { ...userData };
-    updatedUserData.employees.forEach(employee => {
-      employee.tasks.forEach(task => {
-        if (task.title === data.title && task.date === data.date) {
-          task.active = false;
-          task.completed = true;
-        }
+  const updateTaskStatus = async (newStatus) => {
+    if (isUpdating) return;
+    
+    setIsUpdating(true);
+    
+    try {
+      const updatedUserData = { ...userData };
+      let taskUpdated = false;
+
+      updatedUserData.employees = updatedUserData.employees.map(employee => {
+        const updatedEmployee = { ...employee };
+        updatedEmployee.tasks = employee.tasks.map(task => {
+          if (task.title === data.title && task.date === data.date && task.category === data.category) {
+            taskUpdated = true;
+            return {
+              ...task,
+              active: false,
+              completed: newStatus === 'completed',
+              failed: newStatus === 'failed'
+            };
+          }
+          return task;
+        });
+        return updatedEmployee;
       });
-    });
-    setUserData(updatedUserData);
-    localStorage.setItem('employees', JSON.stringify(updatedUserData.employees));
-    if (onTaskUpdate) onTaskUpdate();
+
+      if (taskUpdated) {
+        // Update context
+        setUserData(updatedUserData);
+        
+        // Update localStorage
+        localStorage.setItem('employees', JSON.stringify(updatedUserData.employees));
+        
+        // Update logged in user data if this task belongs to current user
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+          const userInfo = JSON.parse(loggedInUser);
+          if (userInfo.role === 'employee' && userInfo.data) {
+            const updatedEmployee = updatedUserData.employees.find(emp => emp.id === userInfo.data.id);
+            if (updatedEmployee) {
+              userInfo.data = updatedEmployee;
+              localStorage.setItem('loggedInUser', JSON.stringify(userInfo));
+            }
+          }
+        }
+        
+        // Notify parent component
+        if (onTaskUpdate) {
+          onTaskUpdate();
+        }
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert('Failed to update task status. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const failTask = () => {
-    const updatedUserData = { ...userData };
-    updatedUserData.employees.forEach(employee => {
-      employee.tasks.forEach(task => {
-        if (task.title === data.title && task.date === data.date) {
-          task.active = false;
-          task.failed = true;
-        }
-      });
-    });
-    setUserData(updatedUserData);
-    localStorage.setItem('employees', JSON.stringify(updatedUserData.employees));
-    if (onTaskUpdate) onTaskUpdate();
-  };
+  const completeTask = () => updateTaskStatus('completed');
+  const failTask = () => updateTaskStatus('failed');
 
   return (
     <div className="flex-shrink-0 h-full w-[300px] bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-5 shadow-lg border border-yellow-400/20 hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
@@ -54,15 +88,25 @@ const AcceptTask = ({ data, onTaskUpdate }) => {
       <div className="flex gap-2">
         <button 
           onClick={completeTask}
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow-md btn-hover"
+          disabled={isUpdating}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow-md btn-hover ${
+            isUpdating 
+              ? 'bg-gray-500 cursor-not-allowed' 
+              : 'bg-green-500 hover:bg-green-600 text-white'
+          }`}
         >
-          Complete
+          {isUpdating ? 'Updating...' : 'Complete'}
         </button>
         <button 
           onClick={failTask}
-          className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow-md btn-hover"
+          disabled={isUpdating}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow-md btn-hover ${
+            isUpdating 
+              ? 'bg-gray-500 cursor-not-allowed' 
+              : 'bg-red-500 hover:bg-red-600 text-white'
+          }`}
         >
-          Failed
+          {isUpdating ? 'Updating...' : 'Failed'}
         </button>
       </div>
     </div>

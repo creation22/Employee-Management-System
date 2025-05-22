@@ -1,22 +1,66 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { AuthContext } from '../../context/AuthProvider';
 
 const NewTask = ({ data, onTaskUpdate }) => {
   const [userData, setUserData] = useContext(AuthContext);
+  const [isAccepting, setIsAccepting] = useState(false);
 
-  const acceptTask = () => {
-    const updatedUserData = { ...userData };
-    updatedUserData.employees.forEach(employee => {
-      employee.tasks.forEach(task => {
-        if (task.title === data.title && task.date === data.date) {
-          task.newTask = false;
-          task.active = true;
-        }
+  const acceptTask = async () => {
+    if (isAccepting) return;
+    
+    setIsAccepting(true);
+    
+    try {
+      const updatedUserData = { ...userData };
+      let taskUpdated = false;
+
+      updatedUserData.employees = updatedUserData.employees.map(employee => {
+        const updatedEmployee = { ...employee };
+        updatedEmployee.tasks = employee.tasks.map(task => {
+          if (task.title === data.title && task.date === data.date && task.category === data.category) {
+            taskUpdated = true;
+            return {
+              ...task,
+              newTask: false,
+              active: true
+            };
+          }
+          return task;
+        });
+        return updatedEmployee;
       });
-    });
-    setUserData(updatedUserData);
-    localStorage.setItem('employees', JSON.stringify(updatedUserData.employees));
-    if (onTaskUpdate) onTaskUpdate();
+
+      if (taskUpdated) {
+        // Update context
+        setUserData(updatedUserData);
+        
+        // Update localStorage  
+        localStorage.setItem('employees', JSON.stringify(updatedUserData.employees));
+        
+        // Update logged in user data if this task belongs to current user
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        if (loggedInUser) {
+          const userInfo = JSON.parse(loggedInUser);
+          if (userInfo.role === 'employee' && userInfo.data) {
+            const updatedEmployee = updatedUserData.employees.find(emp => emp.id === userInfo.data.id);
+            if (updatedEmployee) {
+              userInfo.data = updatedEmployee;
+              localStorage.setItem('loggedInUser', JSON.stringify(userInfo));
+            }
+          }
+        }
+        
+        // Notify parent component
+        if (onTaskUpdate) {
+          onTaskUpdate();
+        }
+      }
+    } catch (error) {
+      console.error('Error accepting task:', error);
+      alert('Failed to accept task. Please try again.');
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   return (
@@ -39,13 +83,18 @@ const NewTask = ({ data, onTaskUpdate }) => {
       <div className="flex gap-2">
         <button 
           onClick={acceptTask}
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow-md btn-hover"
+          disabled={isAccepting}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm hover:shadow-md btn-hover ${
+            isAccepting 
+              ? 'bg-gray-500 cursor-not-allowed' 
+              : 'bg-green-500 hover:bg-green-600 text-white'
+          }`}
         >
-          Accept Task
+          {isAccepting ? 'Accepting...' : 'Accept Task'}
         </button>
       </div>
     </div>
   );
 };
 
-export default NewTask;
+export default NewTask; 
